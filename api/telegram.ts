@@ -17,11 +17,19 @@ export default async function handler(req, res) {
     return false;
   }
   async function httpPost(url, bodyObj) {
-    var resp = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bodyObj) });
-    if (!resp.ok) {
-      var txt = "";
-      try { txt = await resp.text(); } catch (_) {}
-      console.error("Telegram API error:", resp.status, txt);
+    try {
+      console.log("Making Telegram API call to:", url);
+      var resp = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bodyObj) });
+      console.log("Telegram API response status:", resp.status);
+      if (!resp.ok) {
+        var txt = "";
+        try { txt = await resp.text(); } catch (_) {}
+        console.error("Telegram API error:", resp.status, txt);
+      } else {
+        console.log("Telegram API call successful");
+      }
+    } catch (e) {
+      console.error("Telegram API call failed:", e);
     }
   }
   async function sendMessage(botToken, chatId, text, replyMarkup) {
