@@ -76,9 +76,13 @@ export default async function handler(req, res) {
         var signal = computeNaiveSignal(market, side);
         if (MOCK_MODE) {
           var order = await mockOpenPosition({ market: market, side: signal.side, size: signal.size, leverage: signal.leverage });
-          await editMessageText(BOT_TOKEN, chatId, messageId, "Opened " + (order.side.toUpperCase()) + " on " + order.market + " (mock)
-size=" + order.size + ", lev=" + order.leverage + "
-PnL tracking: simulated", buildMainMenu(DEFAULT_MARKETS));
+          await editMessageText(
+            BOT_TOKEN,
+            chatId,
+            messageId,
+            `Opened ${order.side.toUpperCase()} on ${order.market} (mock)\nsize=${order.size}, lev=${order.leverage}\nPnL tracking: simulated`,
+            buildMainMenu(DEFAULT_MARKETS)
+          );
         } else {
           await editMessageText(BOT_TOKEN, chatId, messageId, "Live mode not enabled. Set MOCK_MODE=false only if you wired real keys.", buildMainMenu(DEFAULT_MARKETS));
         }
@@ -91,10 +95,13 @@ PnL tracking: simulated", buildMainMenu(DEFAULT_MARKETS));
         return res.status(200).send("ok");
       }
       if (data === "status") {
-        await editMessageText(BOT_TOKEN, chatId, messageId, "Status (mock)
-Positions: 0
-PNL: 0.00
-Mode: " + (MOCK_MODE ? "MOCK" : "LIVE"), buildMainMenu(DEFAULT_MARKETS));
+        await editMessageText(
+          BOT_TOKEN,
+          chatId,
+          messageId,
+          `Status (mock)\nPositions: 0\nPNL: 0.00\nMode: ${MOCK_MODE ? "MOCK" : "LIVE"}`,
+          buildMainMenu(DEFAULT_MARKETS)
+        );
         return res.status(200).send("ok");
       }
       return res.status(200).send("ok");
