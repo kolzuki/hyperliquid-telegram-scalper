@@ -17,7 +17,12 @@ export default async function handler(req, res) {
     return false;
   }
   async function httpPost(url, bodyObj) {
-    await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bodyObj) });
+    var resp = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bodyObj) });
+    if (!resp.ok) {
+      var txt = "";
+      try { txt = await resp.text(); } catch (_) {}
+      console.error("Telegram API error:", resp.status, txt);
+    }
   }
   async function sendMessage(botToken, chatId, text, replyMarkup) {
     var url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
@@ -82,32 +87,40 @@ export default async function handler(req, res) {
         var signal = computeNaiveSignal(market, side);
         if (MOCK_MODE) {
           var order = await mockOpenPosition({ market: market, side: signal.side, size: signal.size, leverage: signal.leverage });
-          await editMessageText(
+          var openText = `Opened ${order.side.toUpperCase()} on ${order.market} (mock)\nsize=${order.size}, lev=${order.leverage}\nPnL tracking: simulated`;
+          try { await editMessageText(
             BOT_TOKEN,
             chatId,
             messageId,
-            `Opened ${order.side.toUpperCase()} on ${order.market} (mock)\nsize=${order.size}, lev=${order.leverage}\nPnL tracking: simulated`,
+            openText,
             buildMainMenu(DEFAULT_MARKETS)
-          );
+          ); } catch (e) { console.error(e); }
+          try { await sendMessage(BOT_TOKEN, chatId, openText, buildMainMenu(DEFAULT_MARKETS)); } catch (e2) { console.error(e2); }
         } else {
-          await editMessageText(BOT_TOKEN, chatId, messageId, "Live mode not enabled. Set MOCK_MODE=false only if you wired real keys.", buildMainMenu(DEFAULT_MARKETS));
+          var liveText = "Live mode not enabled. Set MOCK_MODE=false only if you wired real keys.";
+          try { await editMessageText(BOT_TOKEN, chatId, messageId, liveText, buildMainMenu(DEFAULT_MARKETS)); } catch (e3) { console.error(e3); }
+          try { await sendMessage(BOT_TOKEN, chatId, liveText, buildMainMenu(DEFAULT_MARKETS)); } catch (e4) { console.error(e4); }
         }
         return res.status(200).send("ok");
       }
       if (data.indexOf("close:") === 0) {
         var scope = data.split(":")[1];
         var result = await mockClosePosition(scope);
-        await editMessageText(BOT_TOKEN, chatId, messageId, "Closed positions: " + (result.closed.join(", ") || "none") + " (mock)", buildMainMenu(DEFAULT_MARKETS));
+        var closeText = "Closed positions: " + (result.closed.join(", ") || "none") + " (mock)";
+        try { await editMessageText(BOT_TOKEN, chatId, messageId, closeText, buildMainMenu(DEFAULT_MARKETS)); } catch (e5) { console.error(e5); }
+        try { await sendMessage(BOT_TOKEN, chatId, closeText, buildMainMenu(DEFAULT_MARKETS)); } catch (e6) { console.error(e6); }
         return res.status(200).send("ok");
       }
       if (data === "status") {
-        await editMessageText(
+        var statusText = `Status (mock)\nPositions: 0\nPNL: 0.00\nMode: ${MOCK_MODE ? "MOCK" : "LIVE"}`;
+        try { await editMessageText(
           BOT_TOKEN,
           chatId,
           messageId,
-          `Status (mock)\nPositions: 0\nPNL: 0.00\nMode: ${MOCK_MODE ? "MOCK" : "LIVE"}`,
+          statusText,
           buildMainMenu(DEFAULT_MARKETS)
-        );
+        ); } catch (e7) { console.error(e7); }
+        try { await sendMessage(BOT_TOKEN, chatId, statusText, buildMainMenu(DEFAULT_MARKETS)); } catch (e8) { console.error(e8); }
         return res.status(200).send("ok");
       }
       return res.status(200).send("ok");
