@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo "Vercel builds serverless functions automatically"",
+    "build": "echo \"Vercel builds serverless functions automatically\"",
     "start": "vercel dev"
   }
 }
