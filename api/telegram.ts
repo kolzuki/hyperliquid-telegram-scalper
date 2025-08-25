@@ -34,13 +34,13 @@ export default async function handler(req, res) {
   }
   async function sendMessage(botToken, chatId, text, replyMarkup) {
     var url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
-    var body = { chat_id: chatId, text: text, parse_mode: "Markdown" };
+    var body = { chat_id: chatId, text: text };
     if (replyMarkup) body.reply_markup = replyMarkup;
     await httpPost(url, body);
   }
   async function editMessageText(botToken, chatId, messageId, text, replyMarkup) {
     var url = "https://api.telegram.org/bot" + botToken + "/editMessageText";
-    var body = { chat_id: chatId, message_id: messageId, text: text, parse_mode: "Markdown" };
+    var body = { chat_id: chatId, message_id: messageId, text: text };
     if (replyMarkup) body.reply_markup = replyMarkup;
     await httpPost(url, body);
   }
