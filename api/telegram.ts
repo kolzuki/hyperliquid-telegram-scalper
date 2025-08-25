@@ -3,6 +3,8 @@ export default async function handler(req, res) {
   var WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || "";
   var DEFAULT_MARKETS = (process.env.DEFAULT_MARKETS || "BTC-PERP,ETH-PERP,SOL-PERP").split(",");
   var MOCK_MODE = (process.env.MOCK_MODE || "true").toLowerCase() === "true";
+  var REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || "";
+  var REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || "";
   function isAuthorized() {
     var headers = req.headers || {};
     var rawHeader = headers["x-telegram-bot-api-secret-token"] || headers["X-Telegram-Bot-Api-Secret-Token"];
@@ -23,6 +25,41 @@ export default async function handler(req, res) {
       try { txt = await resp.text(); } catch (_) {}
       console.error("Telegram API error:", resp.status, txt);
     }
+  }
+
+  // --- Optional mock persistence (Upstash REST) ---
+  function hasRedis() { return !!(REDIS_URL && REDIS_TOKEN); }
+  async function redisGet(key) {
+    if (!hasRedis()) return null;
+    try {
+      var resp = await fetch(REDIS_URL + "/get/" + encodeURIComponent(key), { headers: { Authorization: "Bearer " + REDIS_TOKEN } });
+      if (!resp.ok) return null;
+      var data = await resp.json();
+      return (data && data.result) || null;
+    } catch (_) { return null; }
+  }
+  async function redisSet(key, value) {
+    if (!hasRedis()) return false;
+    try {
+      var resp = await fetch(REDIS_URL + "/set/" + encodeURIComponent(key) + "/" + encodeURIComponent(value), { headers: { Authorization: "Bearer " + REDIS_TOKEN } });
+      return resp.ok;
+    } catch (_) { return false; }
+  }
+  async function redisDel(key) {
+    if (!hasRedis()) return false;
+    try {
+      var resp = await fetch(REDIS_URL + "/del/" + encodeURIComponent(key), { headers: { Authorization: "Bearer " + REDIS_TOKEN } });
+      return resp.ok;
+    } catch (_) { return false; }
+  }
+  function positionsKey(chatId) { return "positions:" + String(chatId); }
+  async function loadPositions(chatId) {
+    var raw = await redisGet(positionsKey(chatId));
+    if (!raw) return [];
+    try { return JSON.parse(raw); } catch (_) { return []; }
+  }
+  async function savePositions(chatId, positions) {
+    await redisSet(positionsKey(chatId), JSON.stringify(positions));
   }
   async function sendMessage(botToken, chatId, text, replyMarkup) {
     var url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
@@ -96,6 +133,14 @@ export default async function handler(req, res) {
             buildMainMenu(DEFAULT_MARKETS)
           ); } catch (e) { console.error(e); }
           try { await sendMessage(BOT_TOKEN, chatId, openText, buildMainMenu(DEFAULT_MARKETS)); } catch (e2) { console.error(e2); }
+          // persist mock position
+          if (hasRedis()) {
+            try {
+              var positions = await loadPositions(chatId);
+              positions.push({ market: market, side: signal.side, size: signal.size, leverage: signal.leverage, entryPrice: 0 });
+              await savePositions(chatId, positions);
+            } catch (eP) { console.error(eP); }
+          }
         } else {
           var liveText = "Live mode not enabled. Set MOCK_MODE=false only if you wired real keys.";
           try { await editMessageText(BOT_TOKEN, chatId, messageId, liveText, buildMainMenu(DEFAULT_MARKETS)); } catch (e3) { console.error(e3); }
@@ -109,10 +154,18 @@ export default async function handler(req, res) {
         var closeText = "Closed positions: " + (result.closed.join(", ") || "none") + " (mock)";
         try { await editMessageText(BOT_TOKEN, chatId, messageId, closeText, buildMainMenu(DEFAULT_MARKETS)); } catch (e5) { console.error(e5); }
         try { await sendMessage(BOT_TOKEN, chatId, closeText, buildMainMenu(DEFAULT_MARKETS)); } catch (e6) { console.error(e6); }
+        // clear persisted positions for simplicity
+        if (hasRedis()) {
+          try { await redisDel(positionsKey(chatId)); } catch (eD) { console.error(eD); }
+        }
         return res.status(200).send("ok");
       }
       if (data === "status") {
-        var statusText = `Status (mock)\nPositions: 0\nPNL: 0.00\nMode: ${MOCK_MODE ? "MOCK" : "LIVE"}`;
+        var count = 0;
+        if (hasRedis()) {
+          try { var pos = await loadPositions(chatId); count = Array.isArray(pos) ? pos.length : 0; } catch (_) {}
+        }
+        var statusText = `Status (mock)\nPositions: ${count}\nPNL: 0.00\nMode: ${MOCK_MODE ? "MOCK" : "LIVE"}`;
         try { await editMessageText(
           BOT_TOKEN,
           chatId,
