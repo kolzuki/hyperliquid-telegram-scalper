@@ -4,10 +4,16 @@ export default async function handler(req, res) {
   var DEFAULT_MARKETS = (process.env.DEFAULT_MARKETS || "BTC-PERP,ETH-PERP,SOL-PERP").split(",");
   var MOCK_MODE = (process.env.MOCK_MODE || "true").toLowerCase() === "true";
   function isAuthorized() {
-    var header = req.headers["x-telegram-bot-api-secret-token"];
-    if (typeof header === "string" && WEBHOOK_SECRET && header === WEBHOOK_SECRET) return true;
+    var headers = req.headers || {};
+    var rawHeader = headers["x-telegram-bot-api-secret-token"] || headers["X-Telegram-Bot-Api-Secret-Token"];
+    var headerValue = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+    if (typeof headerValue === "string" && WEBHOOK_SECRET && headerValue.trim() === WEBHOOK_SECRET.trim()) return true;
     var q = req.query || {};
-    if (typeof q.secret === "string" && WEBHOOK_SECRET && q.secret === WEBHOOK_SECRET) return true;
+    var secretParam = (Array.isArray(q.secret) ? q.secret[0] : q.secret) || (Array.isArray(q.token) ? q.token[0] : q.token) || (Array.isArray(q.s) ? q.s[0] : q.s);
+    if (typeof secretParam === "string" && WEBHOOK_SECRET && secretParam.trim() === WEBHOOK_SECRET.trim()) return true;
+    var body = req.body || {};
+    var bodySecret = body.secret_token || body.secret || body.token;
+    if (typeof bodySecret === "string" && WEBHOOK_SECRET && bodySecret.trim() === WEBHOOK_SECRET.trim()) return true;
     return false;
   }
   async function httpPost(url, bodyObj) {
